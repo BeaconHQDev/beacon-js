@@ -1,0 +1,24 @@
+name: Build
+on:
+  push:
+    branches: [main]
+    paths: [beacon.js]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build
+      - name: Commit beacon.min.js
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add beacon.min.js
+          git diff --staged --quiet || git commit -m "chore: rebuild beacon.min.js"
+          git push

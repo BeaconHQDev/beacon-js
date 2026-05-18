@@ -1,0 +1,20 @@
+{
+  "name": "@beaconhq/browser",
+  "version": "1.0.0",
+  "description": "Beacon browser SDK — error tracking for web applications",
+  "main": "beacon.js",
+  "files": ["beacon.js", "beacon.min.js"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BeaconHQDev/beacon-js.git"
+  },
+  "homepage": "https://beaconhq.dev",
+  "bugs": { "url": "https://github.com/BeaconHQDev/beacon-js/issues" },
+  "scripts": {
+    "build": "npx terser beacon.js -o beacon.min.js --compress --mangle"
+  },
+  "devDependencies": {
+    "terser": "^5.0.0"
+  }
+}
