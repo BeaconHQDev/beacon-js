@@ -169,6 +169,32 @@ This repo is served via Cloudflare Pages at `cdn.beaconhq.dev`.
 
 ---
 
+## Publishing to npm
+
+Releases are published automatically when a `v*` tag is pushed. The workflow requires an npm access token stored as a GitHub Actions secret.
+
+### One-time setup
+
+1. Go to [npmjs.com](https://www.npmjs.com) → **Access Tokens** → **Generate New Token** → choose **Granular Access Token** (or Classic **Automation** token)
+2. Set the token's scope to allow publishing `@beaconhq/browser`
+3. In this repo: **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: `NPM_TOKEN`
+   - Value: the token from step 1
+
+### Cutting a release
+
+```bash
+# Bump version in package.json first, then:
+git add package.json
+git commit -m "chore: bump to v1.0.1"
+git tag v1.0.1
+git push && git push --tags
+```
+
+The `publish.yml` workflow runs automatically on the tag push, builds `beacon.min.js`, and publishes to npm.
+
+---
+
 ## License
 
 MIT — [beaconhq.dev](https://beaconhq.dev)
