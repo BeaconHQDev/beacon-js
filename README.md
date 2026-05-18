@@ -7,16 +7,16 @@ Beacon browser SDK — lightweight error tracking for web applications. Drop it 
 ## CDN (recommended for most sites)
 
 ```html
-<script src="https://cdn.beaconhq.dev/beacon.js"></script>
+<script src="https://cdn.beaconhq.dev/beacon.min.js"></script>
 <script>
   Beacon.init({ dsn: 'https://pub_KEY@api.beaconhq.dev/PROJECT_ID' })
 </script>
 ```
 
-Use `beacon.min.js` for a smaller payload:
+Use `beacon.js` for the unminified source (useful for debugging):
 
 ```html
-<script src="https://cdn.beaconhq.dev/beacon.min.js"></script>
+<script src="https://cdn.beaconhq.dev/beacon.js"></script>
 ```
 
 ### Versioned URLs (stable, via jsDelivr)
