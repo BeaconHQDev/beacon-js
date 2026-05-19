@@ -601,6 +601,9 @@
     _analyticsSessionId = getAnalyticsSessionId()
     _pageStartTime = Date.now()
 
+    // Track the path so SPA nav patches only fire when the path actually changes
+    var _lastTrackedPath = global.location ? global.location.pathname + global.location.search : null
+
     // Initial page view
     sendPageView(null)
 
@@ -615,9 +618,10 @@
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden') {
         flushDuration()
-      } else if (document.visibilityState === 'visible') {
+      } else {
+        // Tab came back into focus — restart the timer but do NOT send a new page view.
+        // The page was already recorded when it was first loaded/navigated to.
         _pageStartTime = Date.now()
-        sendPageView(null)
       }
     })
 
@@ -625,15 +629,25 @@
     var origPush = history.pushState
     history.pushState = function () {
       origPush.apply(history, arguments)
-      flushDuration()
-      _pageStartTime = Date.now()
-      sendPageView(null)
+      var newPath = global.location ? global.location.pathname + global.location.search : null
+      // Only track if the path actually changed (guards against Vue Router's initial navigation
+      // and other frameworks that call pushState with the same URL)
+      if (newPath !== _lastTrackedPath) {
+        _lastTrackedPath = newPath
+        flushDuration()
+        _pageStartTime = Date.now()
+        sendPageView(null)
+      }
     }
 
     global.addEventListener('popstate', function () {
-      flushDuration()
-      _pageStartTime = Date.now()
-      sendPageView(null)
+      var newPath = global.location ? global.location.pathname + global.location.search : null
+      if (newPath !== _lastTrackedPath) {
+        _lastTrackedPath = newPath
+        flushDuration()
+        _pageStartTime = Date.now()
+        sendPageView(null)
+      }
     })
   }
 
