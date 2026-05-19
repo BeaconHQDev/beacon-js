@@ -18,6 +18,10 @@
   var _ingestUrl = null
   var _perfUrl = null
   var _feedbackUrl = null
+  var _analyticsUrl = null
+  var _analyticsEnabled = false
+  var _analyticsSessionId = null
+  var _pageStartTime = null
   var _release = null
   var _environment = 'production'
   var _maxBreadcrumbs = 50
@@ -48,6 +52,7 @@
       perf: base + '/api/perf' + qs,
       feedback: base + '/api/feedback' + qs,
       replay: base + '/api/replay' + qs,
+      analytics: base + '/api/analytics' + qs,
     }
   }
 
@@ -141,13 +146,16 @@
     _perfUrl = urls.perf
     _feedbackUrl = urls.feedback
     _replayUrl = urls.replay
+    _analyticsUrl = urls.analytics
     _release = opts.release || null
     _environment = opts.environment || 'production'
     _maxBreadcrumbs = opts.maxBreadcrumbs != null ? opts.maxBreadcrumbs : 50
     _replayEnabled = !!opts.replay
+    _analyticsEnabled = !!opts.analytics
     _initialized = true
     instrument()
     if (_replayEnabled) instrumentReplay()
+    if (_analyticsEnabled) instrumentAnalytics()
   }
 
   Beacon.setUser = function (user) {
@@ -536,6 +544,113 @@
       credentials: 'omit',
       keepalive: true,
     }).catch(function () {})
+  }
+
+  // ── Analytics ────────────────────────────────────────────────────────────────
+
+  function getAnalyticsSessionId() {
+    try {
+      var key = 'bcn_sid'
+      var existing = sessionStorage.getItem(key)
+      if (existing) return existing
+      var id = Date.now().toString(36) + Math.random().toString(36).slice(2)
+      sessionStorage.setItem(key, id)
+      return id
+    } catch (e) {
+      return Math.random().toString(36).slice(2)
+    }
+  }
+
+  function getDeviceType() {
+    var ua = navigator.userAgent || ''
+    if (/Mobi|Android/i.test(ua)) return 'mobile'
+    if (/Tablet|iPad/i.test(ua)) return 'tablet'
+    return 'desktop'
+  }
+
+  function sendAnalytics(payload) {
+    if (!_analyticsUrl) return
+    fetch(_analyticsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+      credentials: 'omit',
+    }).catch(function () {})
+  }
+
+  function sendPageView(durationMs) {
+    if (!_analyticsEnabled || !_analyticsSessionId) return
+    var search = global.location ? global.location.search : ''
+    var params = new URLSearchParams(search)
+    sendAnalytics({
+      type: 'pageview',
+      session_id: _analyticsSessionId,
+      url: global.location ? global.location.href : null,
+      path: global.location ? global.location.pathname : null,
+      referrer: document.referrer || null,
+      utm_source: params.get('utm_source') || null,
+      utm_medium: params.get('utm_medium') || null,
+      utm_campaign: params.get('utm_campaign') || null,
+      device: getDeviceType(),
+      duration_ms: durationMs || null,
+    })
+  }
+
+  function instrumentAnalytics() {
+    _analyticsSessionId = getAnalyticsSessionId()
+    _pageStartTime = Date.now()
+
+    // Initial page view
+    sendPageView(null)
+
+    // Duration tracking
+    function flushDuration() {
+      if (!_pageStartTime) return
+      var duration = Date.now() - _pageStartTime
+      _pageStartTime = null
+      sendPageView(duration)
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') {
+        flushDuration()
+      } else if (document.visibilityState === 'visible') {
+        _pageStartTime = Date.now()
+        sendPageView(null)
+      }
+    })
+
+    // SPA navigation — wrap history.pushState (may already be wrapped by instrumentNavigation)
+    var origPush = history.pushState
+    history.pushState = function () {
+      origPush.apply(history, arguments)
+      flushDuration()
+      _pageStartTime = Date.now()
+      sendPageView(null)
+    }
+
+    global.addEventListener('popstate', function () {
+      flushDuration()
+      _pageStartTime = Date.now()
+      sendPageView(null)
+    })
+  }
+
+  /**
+   * Track a custom analytics event.
+   * @param {string} name  - Event name, e.g. 'Signup', 'Checkout Completed'
+   * @param {object} props - Optional properties, e.g. { plan: 'pro', value: 29 }
+   */
+  Beacon.track = function (name, props) {
+    if (!_analyticsEnabled || !_analyticsSessionId) return
+    sendAnalytics({
+      type: 'event',
+      session_id: _analyticsSessionId,
+      name: name,
+      props: props || null,
+      url: global.location ? global.location.href : null,
+    })
   }
 
   // ── Export ───────────────────────────────────────────────────────────────────
