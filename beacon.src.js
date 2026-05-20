@@ -36,6 +36,7 @@
   var _replayEvents = []
   var _replayFlushTimer = null
   var _hasInteracted = false
+  var _maxScrollDepth = 0
 
   // ── DSN parsing ──────────────────────────────────────────────────────────────
 
@@ -573,6 +574,15 @@
     return 'desktop'
   }
 
+  function updateScrollDepth() {
+    if (!document.documentElement) return
+    var scrolled = window.scrollY + window.innerHeight
+    var total = document.documentElement.scrollHeight
+    if (!total) return
+    var pct = Math.min(100, Math.round(scrolled / total * 100))
+    if (pct > _maxScrollDepth) _maxScrollDepth = pct
+  }
+
   function sendAnalytics(payload) {
     if (!_analyticsUrl) return
     fetch(_analyticsUrl, {
@@ -597,7 +607,12 @@
       utm_source: params.get('utm_source') || null,
       utm_medium: params.get('utm_medium') || null,
       utm_campaign: params.get('utm_campaign') || null,
+      utm_term: params.get('utm_term') || null,
+      utm_content: params.get('utm_content') || null,
       has_interacted: _hasInteracted,
+      scroll_depth: _maxScrollDepth,
+      screen_width: (global.screen && global.screen.width) || null,
+      screen_height: (global.screen && global.screen.height) || null,
       device: getDeviceType(),
       duration_ms: durationMs || null,
     })
@@ -618,6 +633,10 @@
     document.addEventListener('keydown', markInteracted, { once: true, passive: true })
     document.addEventListener('scroll', markInteracted, { once: true, passive: true })
     document.addEventListener('touchstart', markInteracted, { once: true, passive: true })
+
+    // Scroll depth tracking
+    document.addEventListener('scroll', updateScrollDepth, { passive: true })
+    updateScrollDepth() // capture initial viewport coverage
 
     // Track the path so SPA nav patches only fire when the path actually changes
     var _lastTrackedPath = global.location ? global.location.pathname + global.location.search : null
@@ -653,6 +672,8 @@
       if (newPath !== _lastTrackedPath) {
         _lastTrackedPath = newPath
         flushDuration()
+        _maxScrollDepth = 0
+        updateScrollDepth()
         _pageStartTime = Date.now()
         sendPageView(null)
       }
@@ -663,6 +684,8 @@
       if (newPath !== _lastTrackedPath) {
         _lastTrackedPath = newPath
         flushDuration()
+        _maxScrollDepth = 0
+        updateScrollDepth()
         _pageStartTime = Date.now()
         sendPageView(null)
       }
