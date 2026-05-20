@@ -35,6 +35,7 @@
   var _replaySessionId = null
   var _replayEvents = []
   var _replayFlushTimer = null
+  var _hasInteracted = false
 
   // ── DSN parsing ──────────────────────────────────────────────────────────────
 
@@ -45,7 +46,11 @@
     var key = match[1]
     var host = match[2]
     var projectId = match[3]
-    var base = 'https://' + host
+    // Route ingest traffic to relay. api.beaconhq.dev DSNs (legacy) are transparently upgraded.
+    var ingestHost = (host === 'api.beaconhq.dev' || host === 'beaconhq.dev')
+      ? 'relay.beaconhq.dev'
+      : host
+    var base = 'https://' + ingestHost
     var qs = '?key=' + encodeURIComponent(key) + '&project=' + encodeURIComponent(projectId)
     return {
       ingest: base + '/api/ingest' + qs,
@@ -592,14 +597,27 @@
       utm_source: params.get('utm_source') || null,
       utm_medium: params.get('utm_medium') || null,
       utm_campaign: params.get('utm_campaign') || null,
+      has_interacted: _hasInteracted,
       device: getDeviceType(),
       duration_ms: durationMs || null,
     })
   }
 
   function instrumentAnalytics() {
+    // Headless browsers (Puppeteer, Playwright, Selenium) expose navigator.webdriver = true.
+    // Abort silently — no session, no page views.
+    if (navigator.webdriver) return
+
     _analyticsSessionId = getAnalyticsSessionId()
     _pageStartTime = Date.now()
+
+    // Track real human interaction so the server can distinguish engaged visitors
+    // from crawlers that slip past UA detection.
+    function markInteracted() { _hasInteracted = true }
+    document.addEventListener('click', markInteracted, { once: true, passive: true })
+    document.addEventListener('keydown', markInteracted, { once: true, passive: true })
+    document.addEventListener('scroll', markInteracted, { once: true, passive: true })
+    document.addEventListener('touchstart', markInteracted, { once: true, passive: true })
 
     // Track the path so SPA nav patches only fire when the path actually changes
     var _lastTrackedPath = global.location ? global.location.pathname + global.location.search : null
